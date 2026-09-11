@@ -175,3 +175,330 @@ This is a good interview distinction:
 | `@Environment` | Reads values provided by SwiftUI's environment |
 | `@AppStorage` | Persists a value using UserDefaults |
 | `@SceneStorage` | Preserves state for a particular scene/session |
+
+## 🟢 Identifiable
+Identifiable is a protocol used to give an object or model a unique identity.
+SwiftUI uses this identity to track individual items when displaying dynamic collections, especially with ForEach and List.
+
+For example, if I have a list of users, each user can have a unique id. When the data changes, SwiftUI can use that ID to determine which item was added, removed, or updated, instead of treating every item as a completely new view.
+
+### Why is it needed?
+SwiftUI is a declarative framework.
+When the underlying data changes, SwiftUI needs to compare the old and new data and figure out what changed.
+
+Identifiable provides a stable identity that helps SwiftUI efficiently update only the views that need to change.
+
+What does Identifiable contain?
+It mainly requires an id property whose type conforms to Hashable.
+## 🟢 Hashable
+Hashable is a protocol that allows a value to produce a hash value, so Swift can efficiently store and find it in collections like Set and Dictionary.
+A Hashable type is also Equatable, meaning Swift can determine whether two values are equal.
+
+Identifiable requires its ID type to be Hashable because SwiftUI needs a reliable, comparable identity for each item.
+
+🟡 Hashing converts a value into a hash value that helps Swift quickly locate that value in hashed collections such as Set and Dictionary.
+## 🟢 Equatable
+Equatable is a protocol that allows two values to be compared to determine whether they are equal.
+#### 🛒 Example: Shopping App
+Imagine your app has products:
+```swift
+struct Product {
+    let id: Int
+    let name: String
+    let price: Double
+}
+```
+
+Now let's see where each protocol becomes useful.
+1. 🔵 Identifiable → Displaying products in SwiftUI
+You have a product list:
+```swift
+struct Product: Identifiable {
+    let id: Int
+    let name: String
+    let price: Double
+}
+```
+Then:
+```swift
+struct ProductListView: View {
+    let products: [Product]
+
+    var body: some View {
+        List(products) { product in
+            Text(product.name)
+        }
+    }
+}
+```
+
+Why Identifiable?
+
+Because SwiftUI needs to know:
+"Which product is this row?"<br>
+For example:<br>
+`Product ID 101` → iPhone<br>
+`Product ID 102` → MacBook<br>
+`Product ID 103` → AirPods
+
+If the product list changes, SwiftUI can track those products by their IDs.
+Real app scenario
+Product lists, chat messages, notifications, orders, contacts, etc.
+
+2. 🔵 Equatable → Detecting whether something changed
+Now imagine your product details screen.<br>
+The user changes the quantity:
+
+iPhone
+Price: $999
+Quantity: 1
+
+You want to determine whether the product configuration has changed.<br>
+You could make your model:
+```swift
+struct CartItem: Equatable {
+    let productID: Int
+    let quantity: Int
+}
+```
+Then:
+```swift
+let oldItem = CartItem(productID: 101, quantity: 1)
+let newItem = CartItem(productID: 101, quantity: 2)
+
+if oldItem != newItem {
+    print("Cart item changed")
+}
+```
+
+Real app scenarios for Equatable<br>
+You see this a lot in apps:
+| Old state | New state |
+|---|---|
+| LoginState | LoginState |
+| CartState | CartState |
+| UserProfile | UserProfile |
+| FilterState | FilterState |
+
+
+You can ask:
+oldState == newState
+
+This can be useful for deciding:<br>
+"Do I actually need to update the UI / perform an API call / save something?"
+
+3. 🔵 Hashable → Favorites / Recently Viewed
+Now imagine your shopping app has a Favorites feature.<br>
+You don't want the same product added twice.
+
+A Set is perfect:
+```swift
+struct Product: Hashable {
+    let id: Int
+    let name: String
+    let price: Double
+}
+```
+Then:
+```swift
+var favorites: Set<Product> = []
+
+let iphone = Product(
+    id: 101,
+    name: "iPhone",
+    price: 999
+)
+
+favorites.insert(iphone)
+favorites.insert(iphone)
+```
+
+The second insertion doesn't create another copy.
+You can do:
+```swift
+if favorites.contains(iphone) {
+    print("Already in favorites")
+}
+```
+Why Hashable?<br>
+Because Set needs its elements to be Hashable.
+
+4. 🔵 Hashable → Dictionary
+Another real-world example is caching products.
+Suppose you want:
+
+Product ID → Product
+
+You could have:
+```swift
+var productCache: [Int: Product] = [:]
+```
+Int is already Hashable, so this works.
+```swift
+productCache[101] = iphone
+```
+Later:
+```swift
+let product = productCache[101]
+```
+The dictionary can efficiently find the product using the key.
+
+5. 🔵 All three together
+
+In a real SwiftUI app, you might actually have:
+```swift
+struct Product: Identifiable, Equatable, Hashable {
+    let id: Int
+    let name: String
+    let price: Double
+}
+```
+And each protocol has a different job:
+```text
+Product
+   │
+   ├── Identifiable
+   │      ↓
+   │   SwiftUI knows:
+   │   "Which product is this?"
+   │
+   ├── Equatable
+   │      ↓
+   │   App knows:
+   │   "Are these two products equal?"
+   │
+   └── Hashable
+          ↓
+       Set / Dictionary:
+       "Where can I efficiently find this product?"
+```
+
+⭐ A very practical example
+Imagine your app has:
+```swift
+let products: [Product]
+```
+You show them:
+```
+ForEach(products) { product in
+    Text(product.name)
+}
+```
+→ Identifiable
+User selects a product and you compare it:
+```
+if selectedProduct == product {
+    // selected
+}
+```
+→ Equatable
+User adds it to favorites:
+
+favorites.insert(product)
+
+→ Hashable
+That's the easiest way to understand them:
+| Protocol | Easy way to remember |
+|---|---|
+| Identifiable | "Who are you?" |
+| Equatable | "Are you the same as this?" |
+| Hashable | "How can I efficiently store/find you?" |
+
+## 🟢 EquatableView
+EquatableView is a wrapper that tells SwiftUI to compare the old and new values of a view using Equatable.
+If the values are equal, SwiftUI can skip updating the view's content.
+
+It can be useful for optimizing expensive views when their inputs don't change frequently.
+
+## 🟢 Diffing
+Diffing means comparing the previous state of your UI with the new state to figure out what actually changed.
+
+💬 Real app example, Imagine a chat app.<br>
+Initially:
+```text
+Chat
+----------------
+John: Hi
+Sam: Hello
+Mike: How are you?
+```
+A new message arrives:
+```text
+Chat
+----------------
+John: Hi
+Sam: Hello
+Mike: How are you?
+John: I'm good!
+```
+SwiftUI can identify that:
+```text
+John: Hi            → unchanged
+Sam: Hello          → unchanged
+Mike: How are you?  → unchanged
+John: I'm good!     → NEW
+```
+So it doesn't conceptually need to treat the entire chat as brand-new.
+That's one reason stable identity is important.
+
+### 🔵 Diffing vs Equatable
+| Concept | Meaning |
+|---|---|
+| Diffing | SwiftUI's general process of figuring out what changed. |
+| EquatableView | A way to give SwiftUI an explicit equality check for a particular view. |
+
+Diffing is the general process SwiftUI uses to determine what changed when the state or data changes.
+EquatableView is a specific optimization mechanism where I make a view Equatable and tell SwiftUI to use that equality comparison.
+
+If the old and new values are equal, SwiftUI can avoid updating that view's subtree.
+
+So diffing is the broader mechanism, while EquatableView gives SwiftUI an explicit equality check for a specific view.
+
+## 🟢 @AppStorage
+@AppStorage is a SwiftUI property wrapper that persists a value in UserDefaults and automatically keeps the SwiftUI view in sync when that value changes.
+It's useful for small, user-preference-type values such as dark mode preference, onboarding completion, selected settings, etc.
+
+Example
+```swift
+struct SettingsView: View {
+    @AppStorage("isDarkMode") private var isDarkMode = false
+
+    var body: some View {
+        Toggle("Dark Mode", isOn: $isDarkMode)
+    }
+}
+```
+When isDarkMode changes, SwiftUI writes the value to UserDefaults.
+When the app launches again, the stored value can be restored.
+
+## 🟢 @SceneStorage
+@SceneStorage is a SwiftUI property wrapper used to preserve small amounts of UI state for a particular scene or window.
+SwiftUI can restore that state when the scene is recreated, such as after being backgrounded or terminated and restored.
+
+Example
+```swift
+struct ContentView: View {
+    @SceneStorage("selectedTab") private var selectedTab = 0
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            Text("Home")
+                .tabItem { Text("Home") }
+                .tag(0)
+
+            Text("Profile")
+                .tabItem { Text("Profile") }
+                .tag(1)
+        }
+    }
+}
+```
+If the scene is recreated, SwiftUI can restore the previously selected tab.
+### 🔵 @AppStorage vs @SceneStorage
+This is the important interview distinction:
+| @AppStorage | @SceneStorage |
+|---|---|
+| **Purpose** | Persistent app/user preferences | Restore UI state for a scene |
+| **Scope** | App/user-wide | Individual scene/window |
+| **Backed by** | UserDefaults | Scene-specific state restoration |
+| **Example** | Dark-mode preference | Selected tab, navigation/UI state |
