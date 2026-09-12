@@ -45,6 +45,7 @@ or receive an existing instance:
 ## 🟢 @StateObject
 @StateObject is used when a view needs to create and own the lifecycle of an ObservableObject.
 SwiftUI ensures that the object is initialized once for that view’s identity and preserved across view redraws.
+It's commonly used when a View creates its own ViewModel.
 
 ```swift
 class UserViewModel: ObservableObject {
@@ -104,12 +105,6 @@ Environment in SwiftUI is a way to share data or dependencies across a view hier
 Instead of passing the same object through every view’s initializer, We can put it into the environment at a higher level, and any child view that needs it can access it directly.
 
 It’s useful when the same data or service is needed by multiple views.
-
-## 🟢 StateObject
-@StateObject is used when a SwiftUI View owns an ObservableObject.
-It creates and maintains the object's lifecycle so the same object instance is preserved across View updates.
-
-It's commonly used when a View creates its own ViewModel.
 
 ## 🟢 EnvironmentObject
 @EnvironmentObject is used to access a shared ObservableObject from the SwiftUI environment.
