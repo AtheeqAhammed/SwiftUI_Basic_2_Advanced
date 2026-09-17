@@ -491,9 +491,195 @@ struct ContentView: View {
 If the scene is recreated, SwiftUI can restore the previously selected tab.
 ### 🔵 @AppStorage vs @SceneStorage
 This is the important interview distinction:
-| @AppStorage | @SceneStorage |
-|---|---|
+| | @AppStorage | @SceneStorage |
+|---|---|---|
 | **Purpose** | Persistent app/user preferences | Restore UI state for a scene |
 | **Scope** | App/user-wide | Individual scene/window |
 | **Backed by** | UserDefaults | Scene-specific state restoration |
 | **Example** | Dark-mode preference | Selected tab, navigation/UI state |
+
+## 🟢 BGTaskScheduler
+BGTaskScheduler is an iOS framework used to schedule background tasks when the app is not actively running.
+It allows us to request iOS to execute some work in the background, such as API data refresh, data synchronization, or processing stored data.
+There are mainly two types of background tasks:
+* BGAppRefreshTask – used for short and lightweight tasks, like refreshing API data.
+* BGProcessingTask – used for longer or more resource-intensive tasks, like database processing.
+
+One important point is that we don't control the exact execution time. We only provide the earliest time the task can run, and iOS decides when to actually execute it based on battery, system resources, usage patterns, and other conditions.
+If they ask for an example
+For example, suppose I have a news app. When the user hasn't opened the app for some time, I can schedule a BGAppRefreshTask so iOS can refresh the latest news in the background. When the user opens the app, the updated data is already available.
+One-line version
+
+“BGTaskScheduler lets an iOS app request background execution for tasks like data refresh and processing, while iOS decides the actual execution time.”
+
+```swift
+import BackgroundTasks
+
+@main
+struct MyApp: App {
+    init() {
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: "com.example.myapp.refresh",
+            using: nil
+        ) { task in
+            handleAppRefresh(task: task as! BGAppRefreshTask)
+        }
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+
+func handleAppRefresh(task: BGAppRefreshTask) {
+    // Do background work here
+
+    task.setTaskCompleted(success: true)
+
+    // Schedule the next refresh
+    scheduleAppRefresh()
+}
+
+func scheduleAppRefresh() {
+    let request = BGAppRefreshTaskRequest(
+        identifier: "com.example.myapp.refresh"
+    )
+
+    request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+
+    do {
+        try BGTaskScheduler.shared.submit(request)
+    } catch {
+        print("Could not schedule: \(error)")
+    }
+}
+```
+
+## 🟢 PreferenceKey
+PreferenceKey is a SwiftUI mechanism used to pass information from a child view up to its parent view.
+Normally, data flows from parent to child using properties like @State, @Binding, and @Environment. But sometimes a child needs to communicate information back to a parent. That's where PreferenceKey is useful.
+It is commonly used to communicate things like a child's size, position, scroll offset, or other layout-related information.
+Simple example
+```swift
+struct MyPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+```
+A child can set the preference:
+```swift
+Text("Hello")
+    .background(
+        GeometryReader { geometry in
+            Color.clear
+                .preference(
+                    key: MyPreferenceKey.self,
+                    value: geometry.size.height
+                )
+        }
+    )
+```
+Then the parent can read it:
+```swift
+VStack {
+    Text("Parent")
+}
+.onPreferenceChange(MyPreferenceKey.self) { height in
+    print("Child height:", height)
+}
+```
+
+Easy way to remember<br>
+Think of it as:<br>
+Parent → Child: @Binding, @Environment, etc.<br>
+Child → Parent: PreferenceKey
+
+## 🟢Anchor Preference 
+Anchor Preference is an advanced form of PreferenceKey that allows a child view to communicate the location or geometry of a specific part of itself to a parent view using an Anchor.
+Instead of passing a fixed value like CGFloat, we pass an anchor, such as the bounds of a view. The parent can then resolve that anchor in its own coordinate space.
+
+Simple example
+```swift
+struct BoundsPreferenceKey: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(
+        value: inout Anchor<CGRect>?,
+        nextValue: () -> Anchor<CGRect>?
+    ) {
+        value = nextValue()
+    }
+}
+```
+The child creates the anchor:
+```swift
+Text("Hello")
+    .anchorPreference(
+        key: BoundsPreferenceKey.self,
+        value: .bounds
+    ) { anchor in
+        anchor
+    }
+```
+The parent can read it:
+```swift
+.overlayPreferenceValue(BoundsPreferenceKey.self) { anchor in
+    GeometryReader { proxy in
+        if let anchor {
+            let rect = proxy[anchor]
+
+            Text("Overlay")
+                .position(
+                    x: rect.midX,
+                    y: rect.maxY + 20
+                )
+        }
+    }
+}
+```
+Here:
+.anchorPreference(...)
+
+stores the child's bounds as an anchor, and:
+proxy[anchor]
+
+resolves that anchor into an actual CGRect.
+#### Why use Anchor Preference?
+It's useful when you want to create UI relative to another view, for example:
+* Custom tooltips
+* Popovers
+* Context menus
+* Highlighting a particular view
+* Custom overlays
+* Connecting two views with a line
+* Getting a child's position in the parent's coordinate space
+  
+### 🔵 PreferenceKey vs Anchor Preference
+| PreferenceKey |	Anchor Preference |
+|---|---|
+|Passes values upward |	Passes geometry anchors upward |
+|Can pass CGFloat, String, etc.|	Usually passes Anchor<CGRect> or similar |
+|Good for general child → parent communication	|Excellent for geometry/layout relationships |
+|Example: scroll offset	|Example: position an overlay relative to a child |
+
+Easy way to remember<br>
+Think:<br>
+GeometryReader = “Tell me the geometry.<br>
+” PreferenceKey = “Send this value from child to parent.<br>
+” Anchor Preference = “Send the child's geometry location to the parent so the parent can position something relative to it.”
+
+A strong interview one-liner is:
+“Anchor Preference allows a child view to publish an anchor representing its geometry, which a parent can later resolve in its coordinate space to create position-aware layouts or overlays.”
+
+## 🟢 Geometry Reader
+
+GeometryReader is a SwiftUI container that allows us to read the size and position of a view within its coordinate space.
+We use it when the UI needs to react to its available space or when we need information such as the width, height, x-position, or y-position of a view.
+
+For example, we can use GeometryReader to create responsive layouts, detect a view's position while scrolling, or calculate dynamic sizes.
+
