@@ -683,3 +683,79 @@ We use it when the UI needs to react to its available space or when we need info
 
 For example, we can use GeometryReader to create responsive layouts, detect a view's position while scrolling, or calculate dynamic sizes.
 
+## 🟢 Task
+Task is basically a way of starting some asynchronous work in Swift.
+For example, if I have an API call that is async, I can use Task to call it without blocking the current execution.
+```swift
+Task {
+    let user = await fetchUser()
+    print(user)
+}
+```
+The important thing is that a Task is not the same as creating a new thread. Swift manages the execution for us. When the task reaches an await and has to wait for something like a network response, the task can suspend instead of blocking a thread. Once the result is available, it can resume.
+
+Task also gives us things like cancellation and priority. For example, I can keep a reference to a task and cancel it if I no longer need the work.
+```swift
+let task = Task {
+    await fetchUser()
+}
+task.cancel()
+```
+But cancellation in Swift is cooperative. Calling cancel() doesn't forcefully kill the task. The async code needs to check for cancellation or use APIs that respond to cancellation.
+
+In SwiftUI, I commonly use .task when I want to perform async work based on a view's lifecycle.
+```swift
+struct ProfileView: View {
+    var body: some View {
+        Text("Profile")
+            .task {
+                await loadProfile()
+            }
+    }
+}
+```
+So, in simple terms, I would say:<br>
+Task represents a piece of asynchronous work. It allows me to use async/await**, supports cancellation and priority, and lets Swift manage how that work is executed without me manually managing threads.
+
+### 🔵 "Why do we need Task if we already have async/await?"
+"async/await describes asynchronous functions and how we wait for their results, while Task gives us a context in which we can actually start that asynchronous work. So they work together rather than being alternatives."
+
+## 🟢 onAppear
+onAppear is a SwiftUI view modifier that lets us execute some code when a view appears in the UI.
+It is commonly used for things like starting a data load, setting up some state, or triggering an initial action.
+### 🔵onAppear vs .task
+| | @onAppear | @Task
+|---|---|---|
+| **Purpose** | Run code when a view appears | Run async work associated with a view
+| **Async/await**| Not async by itself | Designed for async/await
+| **Cancellation** | You manage it yourself | SwiftUI can cancel it when the view leaves
+| **Lifecycle** | Called when view appears | Task is tied to the view's lifecycle
+| **Re-execution** | Can run every time view appears | Can also restart based on .task(id:)
+| **Best for** | Synchronous setup/actions | API calls, async loading, async operations
+
+onAppear is a view lifecycle callback that I use when I need to perform synchronous work when a view becomes visible. .task is designed for asynchronous work and integrates with Swift Concurrency. The important difference is lifecycle and cancellation: SwiftUI manages the task associated with .task**, so it can cancel that work when the view disappears. If I need to make an API call or perform other async work when a view appears, I would generally prefer** .task rather than creating a Task inside onAppear.
+I also use .task(id:) when the async work depends on some value, because SwiftUI can restart the task when that value changes
+
+## 🟢What are the phases of SwiftUI state rendering?
+#### 1. State mutation
+Some state changes
+#### 2. Invalidation
+SwiftUI identifies views affected by that state.
+#### 3. Body evaluation
+SwiftUI reevaluates the affected view's body.
+#### 4. Reconciliation / diffing
+SwiftUI compares the new view description with the previous hierarchy using identity and structure.
+#### 5. UI Update
+SwiftUI applies the required changes to the underlying rendered UI.
+SwiftUI is a declarative framework. State changes invalidate dependent views, SwiftUI reevaluates their descriptions, and the framework reconciles those descriptions with the existing view hierarchy and applies the necessary updates.
+
+## 🟢 Why SwiftUI is Declarative?
+Declarative vs Imperative
+In imperative programming, you tell the system how to change the UI step by step.
+In declarative programming, you describe what the UI should look like for the current state, and the framework decides how to get there.
+SwiftUI is declarative because I describe what the UI should look like based on the current state, rather than manually describing the steps needed to update the UI. For example, I can say that if isLoading is true, show a ProgressView**, otherwise show the content. When the state changes, SwiftUI reevaluates the view description and reconciles the changes for me.**
+In UIKit, I generally manage UI transitions imperatively — changing labels, hiding views, inserting rows, and so on. In SwiftUI, the state is the source of truth and the UI is a function of that state.
+
+## 🟢 Property Wrapper
+property wrappers are a way to encapsulate common logic for storing and managing a Property. They let you define reusable wrappers that manage how a property is read and written.
+A common example is @State in SwiftUI, which automatically re-renders a view when its value changes.
